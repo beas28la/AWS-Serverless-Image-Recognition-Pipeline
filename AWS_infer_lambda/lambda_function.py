@@ -1,6 +1,8 @@
 import os
 import json
 import io
+import time
+import uuid # for request_id           
 import boto3
 import torch
 import torch.nn as nn
@@ -105,6 +107,11 @@ def lambda_handler(event, context):
     record = event["Records"][0]
     image_bucket = record["s3"]["bucket"]["name"]
     image_key = record["s3"]["object"]["key"]
+    
+    # Extract request_id from image filename (without extension)
+    image_filename = os.path.basename(image_key)
+    request_id = os.path.splitext(image_filename)[0]
+    print(f"Request ID: {request_id}")
 
     # 1) Read image from S3
     resp = s3.get_object(Bucket=image_bucket, Key=image_key)
@@ -113,10 +120,12 @@ def lambda_handler(event, context):
     # 2) Get model
     model = get_model()
 
-    # 3) Predict
+    # 3) Predict with timing
+    infer_start = time.time()
     label, conf = predict_image_bytes(model, image_bytes, CLASS_NAMES)
+    infer_latency_ms = (time.time() - infer_start) * 1000
 
-    print(f"Prediction for {image_key}: {label} ({conf:.4f})")
+    print(f"Prediction for {image_key}: {label} ({conf:.4f}), Latency: {infer_latency_ms:.2f}ms, Request ID: {request_id}")
 
     # --- Write to RDS predictions table ---
     try:
@@ -124,10 +133,10 @@ def lambda_handler(event, context):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO predictions (image_name, predicted_label, confidence)
-                VALUES (%s, %s, %s)
+                INSERT INTO predictions (request_id, image_name, predicted_label, confidence, infer_latency_ms)
+                VALUES (%s, %s, %s, %s, %s)
                 """,
-                (image_key, label, conf)
+                (request_id, image_key, label, conf, infer_latency_ms)
             )
         print("Inserted prediction into RDS for", image_key)
     except Exception as e:
@@ -137,8 +146,10 @@ def lambda_handler(event, context):
     return {
         "statusCode": 200,
         "body": json.dumps({
+            "request_id": request_id,
             "image_key": image_key,
             "label": label,
-            "confidence": conf
+            "confidence": conf,
+            "infer_latency_ms": round(infer_latency_ms, 2)
         })
     }
