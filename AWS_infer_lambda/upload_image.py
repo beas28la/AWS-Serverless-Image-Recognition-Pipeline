@@ -14,6 +14,18 @@ def lambda_handler(event, context):
         "headers": event.get("headers")
     }))
 
+    http_method = event.get("httpMethod") or event.get("requestContext", {}).get("http", {}).get("method")
+    if http_method == "OPTIONS":
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "OPTIONS,POST",
+                "Access-Control-Allow-Headers": "Content-Type"
+            },
+            "body": ""
+        }
+
     # 1. Get headers & content-type
     headers = event.get("headers") or {}
     # Sometimes it's 'content-type', sometimes it's 'Content-Type'
@@ -67,7 +79,7 @@ def lambda_handler(event, context):
 
     # 3. Generate request_id and S3 key
     request_id = str(uuid.uuid4())
-    s3_key = f"{request_id}/image{ext}"
+    s3_key = f"uploads/{request_id}{ext}"
 
     # 4. Write to S3
     s3.put_object(
@@ -80,7 +92,11 @@ def lambda_handler(event, context):
     # 5. Return request_id, later /results can use this to lookup
     return {
         "statusCode": 200,
-        "headers": {"Content-Type": "application/json"},
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",        
+            "Access-Control-Allow-Headers": "Content-Type"
+        },
         "body": json.dumps({
             "request_id": request_id,
             "bucket": UPLOAD_BUCKET,
