@@ -63,9 +63,18 @@ def load_resnet_model(model_path, num_classes=10, device="cpu"):
     model.fc = nn.Linear(in_features, num_classes)
 
     state_dict = torch.load(model_path, map_location=device)
+    
+    # Handle PyTorch Lightning format (keys have "model." prefix)
+    first_key = next(iter(state_dict.keys()))
+    if first_key.startswith("model."):
+        print("Detected PyTorch Lightning format, removing 'model.' prefix...")
+        state_dict = {k.replace("model.", "", 1): v for k, v in state_dict.items() 
+                     if k.startswith("model.")}
+    
     model.load_state_dict(state_dict, strict=False)
     model.to(device)
     model.eval()
+    print(f"Model loaded successfully with {len(state_dict)} parameters")
     return model
 
 def predict_image_bytes(model, image_bytes, class_names=None):
