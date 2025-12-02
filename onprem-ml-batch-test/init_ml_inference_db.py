@@ -1,6 +1,10 @@
 # File to initialize PostgreSQL database and creates tables to to save ml model results
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Update (11/28): Added true_label, inference_ms, and latency_ms cols to schema
 
@@ -11,8 +15,8 @@ def create_database(DB_name):
         # Connect to the default 'postgres' database
         conn = psycopg2.connect(
             database="postgres",
-            user="",
-            password="",
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD") or "",
              host="localhost",
             port="5432"
         )
@@ -41,8 +45,8 @@ def create_tables(DB_name):
         # Connect to the newly created database
         conn = psycopg2.connect(
             dbname=DB_name,
-            user="",
-            password="",
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD") or "",
             host="localhost",
             port="5432"
         )

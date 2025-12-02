@@ -17,10 +17,10 @@ load_dotenv()
 
 # Get API base URL from environment or use default
 BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:5001')
-DATA_DIR = pathlib.Path("/EuroSAT") # Change to your DIR path where Eurosat images are stored 
+DATA_DIR = pathlib.Path("/Users/beas28/AWS-Serverless-Image-Recognition-Pipeline/onprem-ml-batch-test/EuroSAT") # Change to your DIR path where Eurosat images are stored 
 test_df = pd.read_csv(DATA_DIR/ "test.csv", index_col=0).reset_index(drop=True)
 NUM_IMAGES = 100   # Number of test images to send
-OUTPUT_CSV = "api_results_100_images.csv"
+OUTPUT_CSV = "api_results_100_images_alex.csv"
 
 # Select subset of test images (e.g., first 100) and their corresponding labels
 subset_test_df = test_df.iloc[:NUM_IMAGES]

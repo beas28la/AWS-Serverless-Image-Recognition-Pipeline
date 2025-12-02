@@ -32,8 +32,7 @@ CORS(app)
 #  Load fine-tuned Resnet50 Model saved locally 
 # ---------------------------------------------
 
-MODEL_DIR_PATH = "#PATH TO YOUR MODEL" # Path to folder where model is stored 
-MODEL_PATH = os.path.join(MODEL_DIR_PATH,"resnet50_eurosat_best.pth")
+MODEL_PATH = os.getenv("MODEL_PATH")
 
 # Load model
 model = load_resnet_model(MODEL_PATH, num_classes=10, device='cpu')

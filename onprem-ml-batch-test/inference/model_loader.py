@@ -27,12 +27,34 @@ def load_resnet_model(MODEL_PATH, num_classes=10, device='cpu'):
     # Load the saved weights 
     # ------------------------------- 
     try: 
-        state_dict = torch.load(MODEL_PATH, map_location=device)
-        # Set strict=False to ignore any missing or extra keys 
+        state_dict = torch.load(MODEL_PATH, map_location=device, weights_only=True)
+        
+        # Check if state_dict is in PyTorch Lightning format (keys have "model." prefix)
+        # If so, remove the prefix to match plain ResNet50 architecture
+        first_key = next(iter(state_dict.keys()))
+        if first_key.startswith("model."):
+            print("Detected PyTorch Lightning format, removing 'model.' prefix...")
+            state_dict = {k.replace("model.", "", 1): v for k, v in state_dict.items() 
+                         if k.startswith("model.")}
+        
+        # Check if state_dict keys match model architecture
+        model_keys = set(model.state_dict().keys())
+        loaded_keys = set(state_dict.keys())
+        
+        missing_keys = model_keys - loaded_keys
+        unexpected_keys = loaded_keys - model_keys
+        
+        if missing_keys:
+            print(f"Warning: Missing keys in state_dict: {len(missing_keys)} keys")
+        if unexpected_keys:
+            print(f"Warning: Unexpected keys in state_dict: {len(unexpected_keys)} keys")
+        
+        # Load weights
         model.load_state_dict(state_dict, strict=False)
         model.to(device)
         model.eval()
-        print("Fine-tuned ResNet50 loaded successfully.")
+        print(f"Fine-tuned ResNet50 loaded successfully from {MODEL_PATH}")
+        print(f"Loaded {len(loaded_keys & model_keys)} / {len(model_keys)} parameters")
         return model
     except Exception as e: 
         print(f"Failed to load fine-tuned ResNet50 model: {e}")

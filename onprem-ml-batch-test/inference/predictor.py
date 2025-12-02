@@ -6,8 +6,11 @@ from torchvision.io import read_image
 from torchvision import transforms as T
 
 # Preprocessing (normalize images)
+# Note: Training used original 64x64 EuroSAT images without resize
+# So inference should also use 64x64 to match training
 preprocess = T.Compose([
-                T.ToTensor(),
+                T.Resize((64, 64)),  # Match training image size
+                T.ToTensor(),        # Convert to [0, 1] range
                 T.Normalize(mean=[0.485, 0.456, 0.406],
                             std=[0.229, 0.224, 0.225]),
             ])

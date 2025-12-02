@@ -21,7 +21,7 @@ def test_upload():
     print("Testing upload endpoint...")
 
     # Path to a real EuroSat test image 
-    test_image_dir = "YOUR_DIR_PATH" # Change to dir path where you have the AnnualCrop_1275 image stored 
+    test_image_dir = os.getenv("TEST_IMAGE_PATH") # Change to dir path where you have the AnnualCrop_1275 image stored 
     test_image_path = os.path.join(test_image_dir, "AnnualCrop_1275.jpg")
     
     if not os.path.exists(test_image_path):
