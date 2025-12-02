@@ -2,7 +2,7 @@ import os
 import json
 import io
 import time
-import uuid # for request_id           
+import uuid  # for request_id
 import boto3
 import torch
 import torch.nn as nn
@@ -10,6 +10,7 @@ import torchvision.models as tv_models
 from PIL import Image
 from torchvision import transforms as T
 import psycopg2
+import psutil   
 
 # ---- S3 client & env vars ----
 s3 = boto3.client("s3")
@@ -23,6 +24,7 @@ CLASS_NAMES = [
     'Industrial', 'Pasture', 'PermanentCrop', 'Residential',
     'River', 'SeaLake'
 ]
+
 # ---- preprocessing / loader / predictor ----
 preprocess = T.Compose([
     T.Resize((64, 64)),
@@ -63,14 +65,17 @@ def load_resnet_model(model_path, num_classes=10, device="cpu"):
     model.fc = nn.Linear(in_features, num_classes)
 
     state_dict = torch.load(model_path, map_location=device)
-    
+
     # Handle PyTorch Lightning format (keys have "model." prefix)
     first_key = next(iter(state_dict.keys()))
     if first_key.startswith("model."):
         print("Detected PyTorch Lightning format, removing 'model.' prefix...")
-        state_dict = {k.replace("model.", "", 1): v for k, v in state_dict.items() 
-                     if k.startswith("model.")}
-    
+        state_dict = {
+            k.replace("model.", "", 1): v
+            for k, v in state_dict.items()
+            if k.startswith("model.")
+        }
+
     model.load_state_dict(state_dict, strict=False)
     model.to(device)
     model.eval()
@@ -111,12 +116,15 @@ def get_model():
 
 # ---- Lambda handler: triggered by S3 event ----
 def lambda_handler(event, context):
+    # start end-to-end timer
+    e2e_start = time.time()
+
     print("EVENT:", json.dumps(event))
 
     record = event["Records"][0]
     image_bucket = record["s3"]["bucket"]["name"]
     image_key = record["s3"]["object"]["key"]
-    
+
     # Extract request_id from image filename (without extension)
     image_filename = os.path.basename(image_key)
     request_id = os.path.splitext(image_filename)[0]
@@ -129,12 +137,24 @@ def lambda_handler(event, context):
     # 2) Get model
     model = get_model()
 
-    # 3) Predict with timing
+    # 3) Predict with timing (inference-only latency)
     infer_start = time.time()
     label, conf = predict_image_bytes(model, image_bytes, CLASS_NAMES)
     infer_latency_ms = (time.time() - infer_start) * 1000
 
-    print(f"Prediction for {image_key}: {label} ({conf:.4f}), Latency: {infer_latency_ms:.2f}ms, Request ID: {request_id}")
+    # 4) Collect CPU & memory metrics (snapshot after inference)
+    cpu_percent = psutil.cpu_percent(interval=0.0)
+    mem = psutil.virtual_memory()
+    memory_percent = mem.percent
+    memory_mb = mem.used / (1024 * 1024)
+
+    print(
+        f"Prediction for {image_key}: {label} ({conf:.4f}), "
+        f"Infer latency: {infer_latency_ms:.2f}ms, "
+        f"CPU: {cpu_percent:.2f}%, "
+        f"Mem: {memory_percent:.2f}% ({memory_mb:.2f} MB), "
+        f"Request ID: {request_id}"
+    )
 
     # --- Write to RDS predictions table ---
     try:
@@ -142,15 +162,18 @@ def lambda_handler(event, context):
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO predictions (request_id, image_name, predicted_label, confidence, infer_latency_ms)
+                INSERT INTO predictions
+                    (request_id, image_name, predicted_label, confidence, infer_latency_ms)
                 VALUES (%s, %s, %s, %s, %s)
                 """,
                 (request_id, image_key, label, conf, infer_latency_ms)
             )
         print("Inserted prediction into RDS for", image_key)
     except Exception as e:
-        # For debugging, we print the error; whether to let the entire Lambda fail is up to you
         print("Failed to insert into RDS:", repr(e))
+
+    # 5) End-to-end latency (includes S3 read + inference + DB write)
+    e2e_latency_ms = (time.time() - e2e_start) * 1000
 
     return {
         "statusCode": 200,
@@ -159,6 +182,10 @@ def lambda_handler(event, context):
             "image_key": image_key,
             "label": label,
             "confidence": conf,
-            "infer_latency_ms": round(infer_latency_ms, 2)
+            "infer_latency_ms": round(infer_latency_ms, 2),
+            "e2e_latency_ms": round(e2e_latency_ms, 2),
+            "cpu_percent": round(cpu_percent, 2),
+            "memory_percent": round(memory_percent, 2),
+            "memory_mb": round(memory_mb, 2)
         })
     }
