@@ -1,0 +1,32 @@
+# Web Framework
+Flask
+flask-cors
+Werkzeug
+
+# Database
+psycopg2-binary
+
+# Environment Variables
+python-dotenv
+
+# System Monitoring
+psutil
+
+# HTTP Client (for testing)
+requests
+
+# Loading in ResNet50 model 
+torch 
+torchvision 
+
+# Jupyter notebook
+ipykernel 
+
+# Dependencies
+click
+blinker
+itsdangerous
+Jinja2
+MarkupSafe
+
+pandas

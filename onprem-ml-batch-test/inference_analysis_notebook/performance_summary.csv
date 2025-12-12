@@ -1,0 +1,6 @@
+Metric,Mean,Std,Min,Max,Median
+Inference Time (ms),17.02,5.04,8.08,26.8,19.7
+E2E Latency (ms),17.74,5.33,8.34,27.97,20.62
+CPU Usage (%),4.56,7.15,0.0,24.0,0.0
+Memory Usage (%),72.89,0.29,72.7,73.7,72.8
+Memory Used (MB),7189.6,52.75,7154.41,7339.23,7166.41
