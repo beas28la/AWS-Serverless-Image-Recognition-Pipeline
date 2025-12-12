@@ -27,7 +27,7 @@ A serverless ML inference pipeline built with AWS services, compared against an 
 
 This project implements an **image classification system** using a fine-tuned **ResNet50** model on the **EuroSAT** dataset (satellite imagery with 10 land-use classes). The system is deployed in two configurations:
 
-1. **AWS Serverless**: Event-driven architecture using Lambda, S3, API Gateway, RDS, and ECR
+1. **AWS Serverless**: Event-driven architecture using Lambda, S3, API Gateway, RDS, ECR, and CloudWatch
 2. **On-Premise Baseline**: Flask-based REST API running on a local VM with PostgreSQL
 
 ---
@@ -37,24 +37,28 @@ This project implements an **image classification system** using a fine-tuned **
 ### AWS Serverless Pipeline
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Client    │────▶│ API Gateway │────▶│   Lambda    │────▶│     S3      │
-│   (React)   │     │  (upload)   │     │ (upload.py) │     │  (images)   │
-└─────────────┘     └─────────────┘     └─────────────┘     └──────┬──────┘
-                                                                   │
-                                                                   ▼ (S3 Trigger)
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Client    │◀────│ API Gateway │◀────│   Lambda    │◀────│   Lambda    │
-│   (Poll)    │     │  (results)  │     │ (query.py)  │     │ (infer.py)  │
-└─────────────┘     └─────────────┘     └─────────────┘     └──────┬──────┘
-                                                                   │
-                                              ┌────────────────────┘
-                                              ▼
-                                        ┌───────────┐
-                                        │    RDS    │
-                                        │(PostgreSQL)│
-                                        └───────────┘
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐                   ┌─────────────┐
+│   Client    │────▶│ API Gateway │────▶│   Lambda    │──────────────────▶│     S3      │
+│   (React)   │     │  (upload)   │     │ (upload.py) │                   │  (images)   │
+└─────────────┘     └─────────────┘     └─────────────┘                   └──────┬──────┘
+                                                                                 │
+                                                                                 ▼ (S3 Trigger)
+                                                                          ┌─────────────┐
+                                                                          │   Lambda    │
+                                                                          │ (infer.py)  │
+                                                                          └──────┬──────┘
+                                                                                 │
+                                                                                 ▼ (Write)
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐                   ┌─────────────┐
+│   Client    │◀────│ API Gateway │◀────│   Lambda    │◀──────────────────│     RDS     │
+│   (Poll)    │     │  (results)  │     │ (query.py)  │      (Read)       │ (PostgreSQL)│
+└─────────────┘     └─────────────┘     └─────────────┘                   └─────────────┘
 ```
+
+**Data Flow:**
+1. **Upload**: Client → API Gateway → Lambda (upload.py) → S3
+2. **Inference**: S3 Event → Lambda (infer.py) → RDS (write predictions)
+3. **Query**: Client → API Gateway → Lambda (query.py) → RDS (read) → Client
 
 ### On-Premise Baseline
 
@@ -133,6 +137,7 @@ AWS-Serverless-Image-Recognition-Pipeline/
 | **API Gateway** | RESTful API endpoints |
 | **RDS (PostgreSQL)** | Prediction results storage |
 | **ECR** | Docker image registry for Lambda |
+| **CloudWatch** | Monitoring, logging, and metrics for all Lambda functions |
 
 ### On-Premise Stack
 | Technology | Purpose |
@@ -232,6 +237,10 @@ Key features:
 - Model caching in Lambda `/tmp` for warm starts
 - Connection pooling for RDS
 - Metrics collection (inference latency, CPU, memory)
+- **CloudWatch monitoring** for all 3 Lambda functions:
+  - Invocation count & error rates
+  - Duration & memory usage
+  - Custom metrics & log aggregation
 
 ### On-Premise Baseline
 
